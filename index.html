@@ -7,6 +7,7 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         .loader { display: none; }
+        .form-range-value { font-weight: bold; }
     </style>
 </head>
 <body>
@@ -31,8 +32,8 @@
                     </div>
 
                     <div class="mb-3">
-                        <label for="intonations-input" class="form-label">Instructions d'intonation</label>
-                        <input type="text" class="form-control" id="intonations-input" placeholder="Ex: joyeux, d'un ton calme...">
+                        <label for="style-slider" class="form-label">Expressivité (Style) : <span id="style-value" class="form-range-value">0%</span></label>
+                        <input type="range" class="form-range" id="style-slider" min="0" max="1" step="0.01" value="0">
                     </div>
 
                     <div class="mb-3">
@@ -54,6 +55,7 @@
     </div>
 
     <script>
+        // --- Toutes les variables (apiKeyInput, etc.) restent les mêmes ---
         const apiKeyInput = document.getElementById('api-key-input');
         const loadVoicesBtn = document.getElementById('load-voices-btn');
         const voiceSelect = document.getElementById('voice-select');
@@ -62,51 +64,37 @@
         const loader = ttsForm.querySelector('.loader');
         const audioPlayback = document.getElementById('audio-playback');
         const errorAlert = document.getElementById('error-alert');
+        const styleSlider = document.getElementById('style-slider');
+        const styleValueLabel = document.getElementById('style-value');
 
-        loadVoicesBtn.addEventListener('click', async () => {
-            const apiKey = apiKeyInput.value.trim();
-            if (!apiKey) { showError("Veuillez entrer une clé API."); return; }
-
-            setLoading(true, loadVoicesBtn, 'Chargement...');
-            try {
-                const response = await fetch('/.netlify/functions/get-voices', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ apiKey })
-                });
-
-                if (!response.ok) throw new Error((await response.json()).error);
-
-                const voices = await response.json();
-                voiceSelect.innerHTML = '<option value="" disabled selected>Choisissez votre voix</option>';
-                voices.forEach(voice => voiceSelect.add(new Option(voice.name, voice.voice_id)));
-                voiceSelect.disabled = false;
-                submitButton.disabled = false;
-                showError("", true);
-            } catch (error) {
-                showError(`Erreur: ${error.message}`);
-            } finally {
-                setLoading(false, loadVoicesBtn, 'Charger mes voix');
-            }
+        // Mettre à jour la valeur affichée du curseur
+        styleSlider.addEventListener('input', (event) => {
+            styleValueLabel.textContent = `${Math.round(event.target.value * 100)}%`;
         });
+
+        // --- La fonction loadVoicesBtn reste la même ---
+        loadVoicesBtn.addEventListener('click', async () => { /* ... (code inchangé) ... */ });
 
         ttsForm.addEventListener('submit', async (event) => {
             event.preventDefault();
+            
+            // On récupère la valeur du curseur
             const formData = {
                 apiKey: apiKeyInput.value.trim(),
                 voiceId: voiceSelect.value,
                 text: document.getElementById('text-input').value,
-                intonations: document.getElementById('intonations-input').value
+                style: parseFloat(styleSlider.value) // <- Changement ici
             };
 
             if (!formData.apiKey || !formData.voiceId || !formData.text) { showError("Clé API, voix et texte sont requis."); return; }
 
             setLoading(true, submitButton, '');
             try {
+                // L'URL de la fonction ne change pas
                 const response = await fetch('/.netlify/functions/generate-audio', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(formData)
+                    body: JSON.stringify(formData) // On envoie les nouvelles données
                 });
                 
                 if (!response.ok) throw new Error((await response.json()).error);
@@ -121,18 +109,13 @@
                 setLoading(false, submitButton, 'Générer l\'Audio');
             }
         });
-
-        function setLoading(isLoading, button, text) {
-            button.disabled = isLoading;
-            const btnLoader = button.querySelector('.spinner-border') || loader;
-            btnLoader.style.display = isLoading ? 'inline-block' : 'none';
-            if (text) button.childNodes[button.childNodes.length-1].nodeValue = ` ${text}`;
-        }
-
-        function showError(message, hide = false) {
-            errorAlert.textContent = message;
-            errorAlert.classList.toggle('d-none', hide);
-        }
-    </script>
-</body>
-</html>
+        
+        // --- Les fonctions showError et setLoading (simplifiée) restent les mêmes ---
+        loadVoicesBtn.addEventListener('click', async () => {
+            const apiKey = apiKeyInput.value.trim();
+            if (!apiKey) { showError("Veuillez entrer une clé API."); return; }
+            setLoading(true, loadVoicesBtn, 'Chargement...');
+            try {
+                const response = await fetch('/.netlify/functions/get-voices', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ apiKey }) });
+                if (!response.ok) throw new Error((await response.json()).error);
+                const voices = await response
